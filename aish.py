@@ -12,6 +12,9 @@ from datetime import datetime
 PROVIDER = os.environ.get("AISH_PROVIDER", "gemini").lower()
 DEFAULT_MODEL = {"gemini": "gemini-3-flash-preview", "claude": "claude-haiku-5-5"}
 MODEL = os.environ.get("AISH_MODEL", DEFAULT_MODEL.get(PROVIDER, "gemini-3-flash-preview"))
+# Model நிறுத்தப்பட்டா (404) இந்த வரிசையில அடுத்ததுக்கு தானா மாறும்
+FALLBACK = {"gemini": ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-flash-latest"],
+            "claude": ["claude-haiku-5-5", "claude-sonnet-5-5"]}.get(PROVIDER, [])
 KEY_FILE = os.path.expanduser(f"~/.aish_{PROVIDER}_key")
 KEY_ENV = {"gemini": "GEMINI_API_KEY", "claude": "ANTHROPIC_API_KEY"}.get(PROVIDER, "GEMINI_API_KEY")
 KEY_SITE = {"gemini": "aistudio.google.com → Get API key", "claude": "console.anthropic.com → API Keys"}.get(PROVIDER, "")
@@ -93,6 +96,9 @@ def get_key():
     print(green(f"Key save ஆகிடுச்சு ({KEY_FILE})."))
     return k
 
+class ModelGone(Exception):
+    pass
+
 def post(url, body, headers):
     req = urllib.request.Request(url, data=json.dumps(body).encode(),
                                  headers={"content-type": "application/json", **headers})
@@ -101,6 +107,8 @@ def post(url, body, headers):
             return json.load(r)
     except urllib.error.HTTPError as e:
         msg = e.read().decode(errors="ignore")[:300]
+        if e.code == 404 or (e.code == 400 and "model" in msg.lower() and ("not found" in msg.lower() or "not supported" in msg.lower())):
+            raise ModelGone(msg)
         if e.code == 429:
             print(red("⏳ Free limit தாண்டிடுச்சு. ஒரு நிமிஷம் கழிச்சு மறுபடி கேளுங்க."))
         elif e.code in (401, 403):
@@ -136,7 +144,21 @@ def ask_gemini(key, messages):
         return None
 
 def ask(key, messages):
-    return ask_claude(key, messages) if PROVIDER == "claude" else ask_gemini(key, messages)
+    global MODEL
+    while True:
+        try:
+            return ask_claude(key, messages) if PROVIDER == "claude" else ask_gemini(key, messages)
+        except ModelGone:
+            if MODEL not in FALLBACK:
+                nxt = FALLBACK[0] if FALLBACK else None
+            else:
+                i = FALLBACK.index(MODEL)
+                nxt = FALLBACK[i + 1] if i + 1 < len(FALLBACK) else None
+            if not nxt:
+                print(red(f"Model '{MODEL}' இப்போ கிடைக்கல. AISH_MODEL-ஐ மாத்துங்க."))
+                return None
+            print(yellow(f"↪ '{MODEL}' நிறுத்தப்பட்டிருக்கு, '{nxt}'-க்கு மாறுறேன்."))
+            MODEL = nxt
 
 def parse(text):
     m = re.search(r"\{.*\}", text, re.S)
