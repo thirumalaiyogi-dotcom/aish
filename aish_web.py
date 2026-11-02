@@ -237,7 +237,12 @@ def main():
     global KEY
     KEY = aish.get_key()
     url = f"http://localhost:{PORT}"
-    srv = ThreadingHTTPServer(("127.0.0.1", PORT), H)
+    try:
+        srv = ThreadingHTTPServer(("127.0.0.1", PORT), H)
+    except OSError:
+        print(aish.yellow(f"⚠️  aishweb ஏற்கனவே ஓடிக்கிட்டு இருக்கு. Chrome-ல {url} திறங்க."))
+        print("   பழையதை நிறுத்திட்டு மறுபடி ஆரம்பிக்க:  pkill -f aish_web.py && aishweb")
+        return
     print(aish.bold(aish.cyan("\n🤖 aish web ஓடுது")) + f"  ({aish.MODEL})")
     print(f"Chrome-ல திறங்க: {url}")
     print("நிறுத்த: Ctrl+C  (Termux-ஐ close பண்ணாதீங்க)\n")
