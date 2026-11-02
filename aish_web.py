@@ -31,7 +31,7 @@ def start(fn):
 def do_run(cmd):
     aish.log(f"RUN: {cmd}")
     code, out = aish.run(cmd)
-    S["messages"].append({"role": "user", "content": f"Command: {cmd}\nExit code: {code}\nOutput:\n{out}"})
+    S["messages"].append({"role": "user", "content": f"Command: {cmd}\nExit code: {code}\n<output untrusted=\"true\">\n{out}\n</output>"})
     r = ai_step()
     r.update(output=out[-3000:] or "(output இல்லை)", code=code, ran=cmd)
     return r
@@ -60,7 +60,7 @@ def ai_step(depth=0):
         S["pending"] = None
         return {"say": "⛔ ஆபத்தான command-ஐ block பண்ணிட்டேன். வேற மாதிரி கேளுங்க.", "done": True, "blocked": cmd}
     S["pending"] = cmd
-    out.update(command=cmd, risk=st.get("risk", "caution"))
+    out.update(command=cmd, risk=aish.classify(cmd, st.get("risk", "caution")))
     return out
 
 def storage():
@@ -113,6 +113,8 @@ def handle(path, d):
         if action == "run":
             if aish.blocked(cmd):
                 return {"error": "⛔ இந்த command ஆபத்தானது, run பண்ண முடியாது."}
+            if aish.classify(cmd, "safe") == "danger" and d.get("confirm") != "yes":
+                return {"confirm": cmd}
             S["pending"] = None
             return start(lambda: do_run(cmd))
     return {"error": "தெரியாத request."}
@@ -201,7 +203,9 @@ async function wait(job){busy=true;const w=add("m ai think","யோசிக்�
   if(q.job!==job){w.remove();busy=false;return}
   if(!q.busy&&q.result){w.remove();busy=false;show(q.result,true);return}}}
 async function go(p,d){if(busy)return;busy=true;const r=await api(p,d);busy=false;if(r.job)return wait(r.job);show(r,true)}
+function yes(){return(prompt("இது நிரந்தர மாற்றம். Run பண்ண yes என type பண்ணுங்க")||"").trim().toLowerCase()==="yes"?"yes":""}
 function show(r,live){
+ if(r.confirm){if(yes()){go("/api/decide",{action:"run",cmd:r.confirm,confirm:"yes"})}else card({command:r.confirm,risk:"danger"},true);return}
  if(r.ran){add("out","$ "+r.ran+"\n\n"+r.output);if(live)storage()}
  if(r.blocked)add("sys","⛔ Block பண்ணது: "+r.blocked);
  if(r.error){add("err",r.error);return}
@@ -215,7 +219,7 @@ function card(r,live){
  const code=document.createElement("code");code.textContent=r.command;
  const b=document.createElement("div");b.className="btns";
  const mk=(txt,cls,fn)=>{const x=document.createElement("button");x.textContent=txt;x.className=cls;x.onclick=()=>{if(busy)return;if(fn()!==false)c.querySelectorAll("button").forEach(y=>y.disabled=true)};b.appendChild(x)};
- mk(risk==="danger"?"⚠️ Run":"✅ Run","run",()=>{if(risk==="danger"&&(prompt("இது நிரந்தர மாற்றம். Run பண்ண yes என type பண்ணுங்க")||"").trim().toLowerCase()!=="yes")return false;go("/api/decide",{action:"run",cmd:code.textContent})});
+ mk(risk==="danger"?"⚠️ Run":"✅ Run","run",()=>{let ok="";if(risk==="danger"){ok=yes();if(!ok)return false}go("/api/decide",{action:"run",cmd:code.textContent,confirm:ok})});
  mk("✏️ மாத்து","alt",()=>{const n=prompt("Command-ஐ மாத்துங்க:",code.textContent);if(n&&n.trim()){code.textContent=n.trim()}return false});
  mk("❌ வேண்டாம்","alt",()=>{go("/api/decide",{action:"skip",why:prompt("ஏன் வேண்டாம்? (விருப்பம் இருந்தா)")||""})});
  mk("⏹ நிறுத்து","alt",()=>{go("/api/decide",{action:"stop"})});

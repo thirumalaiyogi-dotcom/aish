@@ -27,6 +27,8 @@ Claude-க்கு மாற: `echo 'export AISH_PROVIDER=claude' >> ~/.bashrc`
 ## Safety
 
 - 🟢 பார்க்க மட்டும் · 🟡 மாற்றம் செய்யும் · 🔴 நிரந்தர மாற்றம் (`yes` type பண்ணணும்)
+- Risk நிறத்தை AI மட்டும் முடிவு பண்ணாது — code-உம் தனியா check பண்ணும் (`rm`, `find -delete`, `| bash` போன்றவை எப்போதும் 🔴)
+- Command output-க்குள்ள இருக்கும் "instructions"-ஐ AI பின்பற்றாது
 - `rm -rf ~` போன்ற ஆபத்தான commands தானா block ஆகும்
 - AI நேரடியா delete பண்ணாது — முதல்ல `_to_delete` folder-க்கு move பண்ணும்
 - எல்லா commands-ம் `~/aish_log.txt`-ல பதிவாகும்
