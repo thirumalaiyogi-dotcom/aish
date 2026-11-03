@@ -36,7 +36,7 @@ IMG = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".bmp"}
 VID = {".mp4", ".mkv", ".mov", ".3gp", ".webm"}
 DOC = {".pdf"}
 CACHE = os.path.expanduser("~/.aish_sort_cache.json")
-UNDO = os.path.expanduser("~/aish_sort_undo.sh")
+UNDO_DIR = os.path.expanduser("~/aish_sort_undo")
 BATCH = 6
 PACE = int(os.environ.get("AISH_SORT_PACE", "15"))  # batches நடுவுல வினாடிகள்
 MAX_RAW = 3_500_000
@@ -393,6 +393,8 @@ def main():
         return
 
     moved = 0
+    os.makedirs(UNDO_DIR, exist_ok=True)
+    UNDO = os.path.join(UNDO_DIR, time.strftime("undo_%Y%m%d_%H%M%S.sh"))
     with open(UNDO, "w") as u:
         u.write("#!/data/data/com.termux/files/usr/bin/bash\n# aish-sort undo — move பண்ணதை பழைய இடத்துக்கு திரும்ப கொண்டு வரும்\n")
         for p, r in movable:

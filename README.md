@@ -44,7 +44,7 @@ aish-sort FOLDER --no-ai                    # AI இல்லாம, பெய�
 - வகைகள்: Bills, IDs/Certificates, Posters, Screenshots, Personal photos, Forwards/Memes, Study notes, Work documents
 - ID cards, bank details போன்றவை `Private` folder-க்கு போகும்
 - முழு list `Documents/aish_sort_report.csv`-ல save ஆகும்; ஒருமுறை பார்த்ததை மறுபடி AI-க்கு அனுப்பாது
-- எதுவும் delete ஆகாது; `bash ~/aish_sort_undo.sh` பழைய மாதிரி திருப்பிடும்
+- எதுவும் delete ஆகாது; ஒவ்வொரு run-க்கும் `~/aish_sort_undo/` folder-ல தனி undo script save ஆகும்
 - ⚠️ படங்களோட சின்ன preview AI-க்கு (Google) போகும் — personal folders-ல கவனம்
 - Video-க்கு: `pkg install ffmpeg`
 
