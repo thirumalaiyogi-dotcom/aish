@@ -35,6 +35,8 @@ jobs:
           M=android/app/src/main/AndroidManifest.xml
           sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>\n    <application|' $M
           sed -i 's|android:label="aish_app"|android:label="aish"|' $M
+          sed -i -E 's/compileSdk = flutter\.compileSdkVersion/compileSdk = 37/' android/app/build.gradle.kts
+          grep -n "compileSdk" android/app/build.gradle.kts
           rm -rf test
           cat $M
 
