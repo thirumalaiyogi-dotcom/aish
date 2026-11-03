@@ -124,56 +124,77 @@ def payload(path):
     return None
 
 
+def post_raw(url, body, headers):
+    """(data, http_code, message) — aish.post மாதிரி இல்லாம error வகையை திருப்பி தரும்."""
+    import urllib.request, urllib.error
+    req = urllib.request.Request(url, data=json.dumps(body).encode(),
+                                 headers={"content-type": "application/json", **headers})
+    try:
+        with urllib.request.urlopen(req, timeout=180) as r:
+            return json.load(r), 200, ""
+    except urllib.error.HTTPError as e:
+        return None, e.code, e.read().decode(errors="ignore")[:400]
+    except Exception as e:
+        return None, 0, str(e)
+
+
 def call_ai(key, items):
-    """items: list of (mime, bytes). Returns list of dicts or None."""
+    """items: list of (mime, bytes). Returns (status, list) — status: ok | bad_input | busy | fail."""
     while True:
-        try:
-            if aish.PROVIDER == "claude":
-                content = []
-                for n, (mime, data) in enumerate(items, 1):
-                    content.append({"type": "text", "text": f"Attachment {n}:"})
-                    b64 = base64.b64encode(data).decode()
-                    if mime == "application/pdf":
-                        content.append({"type": "document", "source": {"type": "base64", "media_type": mime, "data": b64}})
-                    else:
-                        content.append({"type": "image", "source": {"type": "base64", "media_type": mime, "data": b64}})
-                content.append({"type": "text", "text": PROMPT})
-                data = aish.post("https://api.anthropic.com/v1/messages",
-                                 {"model": aish.MODEL, "max_tokens": 1500, "messages": [{"role": "user", "content": content}]},
-                                 {"x-api-key": key, "anthropic-version": "2023-06-01"})
-                text = None if data is None else "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
-            else:
-                parts = []
-                for n, (mime, data) in enumerate(items, 1):
-                    parts.append({"text": f"Attachment {n}:"})
-                    parts.append({"inline_data": {"mime_type": mime, "data": base64.b64encode(data).decode()}})
-                parts.append({"text": PROMPT})
-                data = aish.post(f"https://generativelanguage.googleapis.com/v1beta/models/{aish.MODEL}:generateContent",
-                                 {"contents": [{"role": "user", "parts": parts}],
-                                  "generationConfig": {"responseMimeType": "application/json", "maxOutputTokens": 1500}},
-                                 {"x-goog-api-key": key})
-                text = None
-                if data:
-                    try:
-                        text = "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"])
-                    except (KeyError, IndexError):
-                        text = None
-            break
-        except aish.ModelGone:
+        if aish.PROVIDER == "claude":
+            content = []
+            for n, (mime, data) in enumerate(items, 1):
+                content.append({"type": "text", "text": f"Attachment {n}:"})
+                b64 = base64.b64encode(data).decode()
+                kind = "document" if mime == "application/pdf" else "image"
+                content.append({"type": kind, "source": {"type": "base64", "media_type": mime, "data": b64}})
+            content.append({"type": "text", "text": PROMPT})
+            data, code, msg = post_raw("https://api.anthropic.com/v1/messages",
+                                       {"model": aish.MODEL, "max_tokens": 1500, "messages": [{"role": "user", "content": content}]},
+                                       {"x-api-key": key, "anthropic-version": "2023-06-01"})
+            text = None if data is None else "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+        else:
+            parts = []
+            for n, (mime, data) in enumerate(items, 1):
+                parts.append({"text": f"Attachment {n}:"})
+                parts.append({"inline_data": {"mime_type": mime, "data": base64.b64encode(data).decode()}})
+            parts.append({"text": PROMPT})
+            data, code, msg = post_raw(f"https://generativelanguage.googleapis.com/v1beta/models/{aish.MODEL}:generateContent",
+                                       {"contents": [{"role": "user", "parts": parts}],
+                                        "generationConfig": {"responseMimeType": "application/json", "maxOutputTokens": 1500}},
+                                       {"x-goog-api-key": key})
+            text = None
+            if data:
+                try:
+                    text = "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"])
+                except (KeyError, IndexError):
+                    text = None
+        low = msg.lower()
+        if code == 404 or (code == 400 and "model" in low and ("not found" in low or "not supported" in low)):
             fb = aish.FALLBACK
             i = fb.index(aish.MODEL) + 1 if aish.MODEL in fb else 0
             if i >= len(fb):
-                return None
+                print(red(f"Model '{aish.MODEL}' கிடைக்கல."))
+                return "fail", None
             print(yellow(f"↪ '{aish.MODEL}' கிடைக்கல, '{fb[i]}'-க்கு மாறுறேன்."))
             aish.MODEL = fb[i]
+            continue
+        break
+    if code in (429, 500, 502, 503, 504) or code == 0:
+        return "busy", None
+    if code in (401, 403):
+        print(red(f"🔑 API key பிரச்சனை ({code})."))
+        return "fail", None
+    if code == 400 or code == 413:
+        return "bad_input", None
     if not text:
-        return None
+        return "fail", None
     m = re.search(r"\[.*\]", text, re.S)
     try:
         arr = json.loads(m.group(0) if m else text)
     except Exception:
-        return None
-    return arr if isinstance(arr, list) else None
+        return "fail", None
+    return ("ok", arr) if isinstance(arr, list) else ("fail", None)
 
 
 def unique_dest(dest_dir, name):
@@ -240,19 +261,15 @@ def main():
             batch = []
             done = 0
 
-            def flush(batch):
+            def save(batch, arr):
                 nonlocal done
-                items = [b[1] for b in batch]
-                for attempt in range(2):
-                    arr = call_ai(key, items)
-                    if arr is not None:
-                        break
-                    if attempt == 0:
-                        print(yellow("   ⏳ 30 வினாடி காத்திருந்து மறுபடி try பண்றேன்..."))
-                        time.sleep(30)
-                if arr is None:
-                    return False
-                by_i = {int(o.get("i", 0)): o for o in arr if isinstance(o, dict)}
+                by_i = {}
+                for o in arr:
+                    if isinstance(o, dict):
+                        try:
+                            by_i[int(o.get("i", 0))] = o
+                        except (TypeError, ValueError):
+                            pass
                 for n, (p, _) in enumerate(batch, 1):
                     o = by_i.get(n, {})
                     cat = o.get("category") if o.get("category") in CATS else "Others"
@@ -263,7 +280,28 @@ def main():
                 done += len(batch)
                 print(f"   {done}/{len(todo)} ✓")
                 save_cache(cache)
-                return True
+
+            def flush(batch):
+                """True = தொடரலாம், False = நிறுத்தணும்."""
+                for attempt in range(2):
+                    status, arr = call_ai(key, [b[1] for b in batch])
+                    if status == "ok":
+                        save(batch, arr)
+                        return True
+                    if status == "bad_input":
+                        if len(batch) == 1:
+                            p = batch[0][0]
+                            print(yellow(f"   ⚠️  {os.path.basename(p)[:40]}: AI-ஆல இந்த file-ஐ படிக்க முடியல, skip."))
+                            skipped.append(p)
+                            return True
+                        # எந்த file பிரச்சனைன்னு கண்டுபிடிக்க ஒவ்வொண்ணா அனுப்பும்
+                        return all(flush([b]) for b in batch)
+                    if status == "busy" and attempt == 0:
+                        print(yellow("   ⏳ AI busy / limit. 30 வினாடி காத்திருந்து மறுபடி try பண்றேன்..."))
+                        time.sleep(30)
+                        continue
+                    return False
+                return False
 
             for p in todo:
                 pl = payload(p)
@@ -272,13 +310,14 @@ def main():
                     continue
                 batch.append((p, pl))
                 if len(batch) == BATCH:
-                    if not flush(batch):
-                        print(red("AI பதில் தரல. இதுவரை பார்த்ததை வச்சு தொடர்றேன்."))
-                        batch = []
-                        break
+                    ok = flush(batch)
                     batch = []
-            if batch and not flush(batch):
-                print(red("கடைசி batch AI பதில் தரல."))
+                    if not ok:
+                        print(red("AI பதில் தரல (limit அல்லது network). இதுவரை பார்த்ததை வச்சு தொடர்றேன்."))
+                        break
+            else:
+                if batch and not flush(batch):
+                    print(red("கடைசி batch AI பதில் தரல."))
 
     for p in files:
         if p not in result:
@@ -301,7 +340,7 @@ def main():
     if pending:
         print(f"  {'இன்னும் பார்க்காதது':<24} {len(pending):>4} files (மறுபடி run பண்ணா தொடரும்)")
     if skipped:
-        print(yellow(f"  {len(skipped)} files preview எடுக்க முடியல (பெரிய file, அல்லது video-க்கு ffmpeg இல்ல: pkg install ffmpeg)."))
+        print(yellow(f"  {len(skipped)} files-ஐ பார்க்க முடியல (சேதமான/பெரிய file, அல்லது video-க்கு ffmpeg இல்ல: pkg install ffmpeg)."))
 
     report = os.path.expanduser("~/storage/shared/Documents/aish_sort_report.csv")
     try:
