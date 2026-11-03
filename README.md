@@ -13,7 +13,18 @@ curl -sL https://raw.githubusercontent.com/thirumalaiyogi-dotcom/aish/main/insta
 
 3. Termux-ஐ close பண்ணி மறுபடி திறங்க.
 
-## பயன்படுத்த
+## 📱 Android App (Termux தேவையில்ல)
+
+**Download:** https://github.com/thirumalaiyogi-dotcom/aish/releases/latest/download/aish.apk
+
+- Email code வச்சு login
+- AI key server-ல (Supabase Edge Function) மறைச்சு வச்சிருக்கு — users-க்கு key தேவையில்ல
+- ஒவ்வொருத்தருக்கும் தினசரி limit (default 40), chat history save ஆகும்
+- Phone-ல இருக்கும் `/system/bin/sh` வழியா commands ஓடும் (Termux tools இல்ல)
+
+Backend: `supabase/schema.sql` (SQL Editor-ல run பண்ணுங்க), `supabase/functions/aish-ask/index.ts` (Edge Function), secret `GEMINI_API_KEY`.
+
+## பயன்படுத்த (Termux)
 
 | Command | என்ன செய்யும் |
 |---|---|
