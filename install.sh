@@ -7,9 +7,12 @@ echo "🤖 aish install ஆகுது..."
 command -v python >/dev/null 2>&1 || pkg install -y python
 curl -fsSL "$REPO/aish.py" -o ~/aish.py
 curl -fsSL "$REPO/aish_web.py" -o ~/aish_web.py
-python -m py_compile ~/aish.py ~/aish_web.py
+curl -fsSL "$REPO/aish_sort.py" -o ~/aish_sort.py
+python -m py_compile ~/aish.py ~/aish_web.py ~/aish_sort.py
+python -c "import PIL" 2>/dev/null || pkg install -y python-pillow || echo "(python-pillow install ஆகல — பெரிய படங்கள் skip ஆகும்)"
 touch ~/.bashrc
 grep -q "alias aish=" ~/.bashrc || echo "alias aish='python ~/aish.py'" >> ~/.bashrc
+grep -q "alias aish-sort=" ~/.bashrc || echo "alias aish-sort='python ~/aish_sort.py'" >> ~/.bashrc
 grep -q "alias aishweb=" ~/.bashrc || echo "alias aishweb='termux-wake-lock; python ~/aish_web.py'" >> ~/.bashrc
 [ -d ~/storage/shared ] || termux-setup-storage || true
 echo ""
@@ -17,4 +20,5 @@ echo "✅ முடிஞ்சது!"
 echo "   Termux-ஐ close பண்ணி மறுபடி திறங்க. அப்புறம்:"
 echo "   aish      → terminal-ல chat"
 echo "   aishweb   → Chrome-ல chat (localhost:8080)"
+echo "   aish-sort → images/videos/PDF-ஐ AI பார்த்து வகை வாரியா பிரிக்கும்"
 echo "   முதல் தடவை Gemini API key கேட்கும் (aistudio.google.com → Get API key, இலவசம்)"

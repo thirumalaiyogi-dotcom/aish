@@ -30,6 +30,23 @@ Backend: `supabase/schema.sql` (SQL Editor-ல run பண்ணுங்க), `s
 |---|---|
 | `aish` | Terminal-ல chat |
 | `aishweb` | Chrome-ல chat screen (`localhost:8080`) |
+| `aish-sort` | Images, videos, PDF-ஐ AI பார்த்து "இது எதுக்கானது"-னு சொல்லி வகை வாரியா பிரிக்கும் |
+
+### aish-sort
+
+```bash
+aish-sort                                   # Download folder
+aish-sort ~/storage/shared/DCIM/Screenshots # வேற folder
+aish-sort FOLDER --max 20                   # ஒரு தடவைக்கு 20 files மட்டும் AI-க்கு
+aish-sort FOLDER --no-ai                    # AI இல்லாம, பெயர்/type வச்சு மட்டும்
+```
+
+- வகைகள்: Bills, IDs/Certificates, Posters, Screenshots, Personal photos, Forwards/Memes, Study notes, Work documents
+- ID cards, bank details போன்றவை `Private` folder-க்கு போகும்
+- முழு list `Documents/aish_sort_report.csv`-ல save ஆகும்; ஒருமுறை பார்த்ததை மறுபடி AI-க்கு அனுப்பாது
+- எதுவும் delete ஆகாது; `bash ~/aish_sort_undo.sh` பழைய மாதிரி திருப்பிடும்
+- ⚠️ படங்களோட சின்ன preview AI-க்கு (Google) போகும் — personal folders-ல கவனம்
+- Video-க்கு: `pkg install ffmpeg`
 
 முதல் தடவை **Gemini API key** கேட்கும் — [aistudio.google.com](https://aistudio.google.com) → Get API key (இலவசம்).
 
