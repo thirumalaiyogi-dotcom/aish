@@ -25,6 +25,7 @@ CATS = {
     "Screen_Recordings": "Screen recordings",
     "Others": "Anything else",
 }
+EXTRA_CATS = {"Empty_Files", "APKs", "Archives", "Audio", "Code"}
 LOCAL_EXT = {
     "APKs": {".apk", ".aab", ".xapk"},
     "Archives": {".zip", ".rar", ".7z", ".tar", ".gz"},
@@ -69,6 +70,8 @@ def ckey(p):
 
 
 def local_category(path):
+    if os.path.getsize(path) == 0:
+        return "Empty_Files"  # 0 byte — download பாதியில நின்னது
     name = os.path.basename(path).lower()
     ext = os.path.splitext(name)[1]
     for cat, exts in LOCAL_EXT.items():
