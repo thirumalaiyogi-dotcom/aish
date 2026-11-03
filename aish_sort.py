@@ -83,10 +83,26 @@ def local_category(path):
     return "Others"
 
 
+_PIL_WARNED = False
+
+
 def thumb_image(path):
+    global _PIL_WARNED
     try:
         from PIL import Image
+    except ImportError:
+        if not _PIL_WARNED:
+            print(yellow("   (Pillow இல்ல — படங்களை சின்னதாக்க முடியாது. pkg install python-pillow)"))
+            _PIL_WARNED = True
+        if os.path.getsize(path) <= MAX_RAW:
+            mime = mimetypes.guess_type(path)[0] or "image/jpeg"
+            return mime, open(path, "rb").read()
+        return None
+    try:
+        Image.MAX_IMAGE_PIXELS = None          # flex / banner மாதிரி ரொம்ப பெரிய படங்களுக்கு
         im = Image.open(path)
+        im.draft("RGB", (1536, 1536))          # JPEG-ஐ சின்ன அளவுலயே decode பண்ணும் (வேகம், memory)
+        im.seek(0) if getattr(im, "is_animated", False) else None
         im.thumbnail((768, 768))
         if im.mode not in ("RGB", "L"):
             im = im.convert("RGB")
@@ -94,10 +110,7 @@ def thumb_image(path):
         im.save(buf, "JPEG", quality=70)
         return "image/jpeg", buf.getvalue()
     except Exception:
-        if os.path.getsize(path) <= MAX_RAW:
-            mime = mimetypes.guess_type(path)[0] or "image/jpeg"
-            return mime, open(path, "rb").read()
-    return None
+        return None                            # படிக்க முடியாத படம் — AI-க்கு அனுப்பாம skip
 
 
 def thumb_video(path):
