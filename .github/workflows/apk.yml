@@ -1,0 +1,60 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+    paths: ["app/**", ".github/workflows/apk.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Create Flutter project
+        run: |
+          flutter create --org com.thiran --project-name aish_app --platforms android build_app
+          cp app/lib/*.dart build_app/lib/
+          cd build_app
+          flutter pub add supabase_flutter permission_handler
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>\n    <application|' $M
+          sed -i 's|android:label="aish_app"|android:label="aish"|' $M
+          rm -rf test
+          cat $M
+
+      - name: Analyze
+        working-directory: build_app
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Build APK
+        working-directory: build_app
+        run: |
+          flutter build apk --release
+          cp build/app/outputs/flutter-apk/app-release.apk ../aish.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: aish APK ${{ github.run_number }}
+          body: |
+            Phone-ல download பண்ணி install பண்ணுங்க.
+            Latest link: https://github.com/${{ github.repository }}/releases/latest/download/aish.apk
+          files: aish.apk
+          make_latest: true
