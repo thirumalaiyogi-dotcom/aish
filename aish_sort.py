@@ -38,6 +38,7 @@ DOC = {".pdf"}
 CACHE = os.path.expanduser("~/.aish_sort_cache.json")
 UNDO = os.path.expanduser("~/aish_sort_undo.sh")
 BATCH = 6
+PACE = int(os.environ.get("AISH_SORT_PACE", "15"))  # batches நடுவுல வினாடிகள்
 MAX_RAW = 3_500_000
 
 PROMPT = """You are sorting files on a user's phone. For each numbered attachment, decide what it is for.
@@ -299,7 +300,7 @@ def main():
 
             def flush(batch):
                 """True = தொடரலாம், False = நிறுத்தணும்."""
-                for attempt in range(2):
+                for attempt in range(3):
                     status, arr = call_ai(key, [b[1] for b in batch])
                     if status == "ok":
                         save(batch, arr)
@@ -313,9 +314,16 @@ def main():
                         # எந்த file பிரச்சனைன்னு கண்டுபிடிக்க ஒவ்வொண்ணா அனுப்பும்
                         return all(flush([b]) for b in batch)
                     if status == "busy" and attempt == 0:
-                        print(yellow("   ⏳ AI busy / limit. 30 வினாடி காத்திருந்து மறுபடி try பண்றேன்..."))
-                        time.sleep(30)
+                        print(yellow("   ⏳ AI busy / limit. 60 வினாடி காத்திருந்து மறுபடி try பண்றேன்..."))
+                        time.sleep(60)
                         continue
+                    if status == "busy" and attempt == 1:
+                        fb = aish.FALLBACK
+                        i = fb.index(aish.MODEL) + 1 if aish.MODEL in fb else 0
+                        if i < len(fb):
+                            print(yellow(f"   ↪ '{aish.MODEL}' limit முடிஞ்சது, '{fb[i]}'-ல தொடர்றேன்."))
+                            aish.MODEL = fb[i]
+                            continue
                     return False
                 return False
 
@@ -326,12 +334,16 @@ def main():
                     continue
                 batch.append((p, pl))
                 if len(batch) == BATCH:
+                    if done:
+                        time.sleep(PACE)   # free limit-க்காக batches நடுவுல கொஞ்சம் இடைவெளி
                     ok = flush(batch)
                     batch = []
                     if not ok:
                         print(red("AI பதில் தரல (limit அல்லது network). இதுவரை பார்த்ததை வச்சு தொடர்றேன்."))
                         break
             else:
+                if batch and done:
+                    time.sleep(PACE)
                 if batch and not flush(batch):
                     print(red("கடைசி batch AI பதில் தரல."))
 
